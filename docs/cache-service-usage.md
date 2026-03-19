@@ -4,6 +4,22 @@ This guide explains how to run the Cache Service and how an orchestrator should 
 
 For the architecture and design rationale, see [cache-service.md](./cache-service.md).
 
+## Table of Contents
+
+* [1. What This Service Does](#1-what-this-service-does)
+* [2. Configuration Via `.env`](#2-configuration-via-env)
+* [3. Default Configuration](#3-default-configuration)
+* [4. Running The Service](#4-running-the-service)
+* [5. Running With Docker](#5-running-with-docker)
+* [6. API Overview](#6-api-overview)
+* [7. Recommended Orchestrator Flow](#7-recommended-orchestrator-flow)
+* [8. Endpoint Details](#8-endpoint-details)
+* [9. Example End-To-End Session](#9-example-end-to-end-session)
+* [10. Input Validation Rules](#10-input-validation-rules)
+* [11. Key Design Recommendations](#11-key-design-recommendations)
+* [12. Operational Notes](#12-operational-notes)
+* [13. Typical Integration Pseudocode](#13-typical-integration-pseudocode)
+
 ## 1. What This Service Does
 
 The Cache Service stores the result of an ETL computation behind a deterministic cache key.
