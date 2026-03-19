@@ -2,6 +2,5 @@ package com.example.cacheservice.cache.domain;
 
 public enum PublishOutcomeType {
     PUBLISHED,
-    LOCK_NOT_FOUND,
-    INVALID_TOKEN
+    LOCK_NOT_FOUND
 }

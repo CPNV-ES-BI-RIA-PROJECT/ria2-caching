@@ -5,8 +5,6 @@ import java.time.Instant;
 
 public record LockAcquisition(
         boolean acquired,
-        String token,
-        String owner,
         Duration leaseDuration,
         Instant expiresAt) {
 }
