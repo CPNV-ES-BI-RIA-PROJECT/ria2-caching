@@ -1,5 +1,7 @@
 # Cache Service — Technical Documentation
 
+Practical usage guide: [cache-service-usage.md](./cache-service-usage.md)
+
 ## 1. Overview
 
 The **Cache Service** is a centralized microservice designed to **cache results of ETL operations** in order to avoid redundant computations.
