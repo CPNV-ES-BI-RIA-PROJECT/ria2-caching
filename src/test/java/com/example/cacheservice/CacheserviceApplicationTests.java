@@ -1,7 +1,6 @@
 package com.example.cacheservice;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,65 +28,21 @@ class CacheserviceApplicationTests {
     }
 
     @Test
-    void cacheLifecycleWorksFromMissToReady() throws Exception {
+    void getMissStartsLockWorkflowAndThenPublishMakesEntryReady() throws Exception {
         HttpResponse<String> missResponse = get("/v1/cache/extract/job-123");
         assertEquals(404, missResponse.statusCode());
         assertJsonField(missResponse, "status", "MISS");
 
-        HttpResponse<String> lockResponse = post(
-                "/v1/cache/extract/job-123/lock",
-                """
-                        {
-                          "owner": "orchestrator",
-                          "leaseMs": 300000
-                        }
-                        """);
-        assertEquals(200, lockResponse.statusCode());
-        assertJsonField(lockResponse, "owner", "orchestrator");
-        String token = readBody(lockResponse).get("token").asString();
-        assertNotNull(token);
-
         HttpResponse<String> computingResponse = get("/v1/cache/extract/job-123");
         assertEquals(409, computingResponse.statusCode());
         assertJsonField(computingResponse, "status", "COMPUTING");
-        assertJsonField(computingResponse, "owner", "orchestrator");
 
-        HttpResponse<String> secondLockResponse = post(
-                "/v1/cache/extract/job-123/lock",
-                """
-                        {
-                          "owner": "orchestrator",
-                          "leaseMs": 300000
-                        }
-                        """);
-        assertEquals(409, secondLockResponse.statusCode());
+        HttpResponse<String> manualLockResponse = post("/v1/cache/extract/job-123/lock");
+        assertEquals(409, manualLockResponse.statusCode());
 
-        HttpResponse<String> invalidPublishResponse = post(
-                "/v1/cache/extract/job-123/publish",
-                """
-                        {
-                          "token": "wrong-token",
-                          "artifactUri": "s3://bucket/extract/job-123.parquet",
-                          "metadata": { "rows": 42 },
-                          "ttlSeconds": 86400
-                        }
-                        """);
-        assertEquals(403, invalidPublishResponse.statusCode());
-
-        HttpResponse<String> publishResponse = post(
-                "/v1/cache/extract/job-123/publish",
-                """
-                        {
-                          "token": "%s",
-                          "artifactUri": "s3://bucket/extract/job-123.parquet",
-                          "metadata": { "rows": 42 },
-                          "ttlSeconds": 86400
-                        }
-                        """.formatted(token));
+        HttpResponse<String> publishResponse = post("/v1/cache/extract/job-123/publish");
         assertEquals(200, publishResponse.statusCode());
         assertJsonField(publishResponse, "status", "READY");
-        assertJsonField(publishResponse, "artifactUri", "s3://bucket/extract/job-123.parquet");
-        assertEquals(42, readBody(publishResponse).path("metadata").path("rows").asInt());
 
         HttpResponse<String> readyResponse = get("/v1/cache/extract/job-123");
         assertEquals(200, readyResponse.statusCode());
@@ -102,17 +57,19 @@ class CacheserviceApplicationTests {
     }
 
     @Test
+    void manualLockEndpointStaysAvailableForDirectUse() throws Exception {
+        HttpResponse<String> lockResponse = post("/v1/cache/manual/job-789/lock");
+        assertEquals(200, lockResponse.statusCode());
+        assertJsonField(lockResponse, "status", "COMPUTING");
+
+        HttpResponse<String> publishResponse = post("/v1/cache/manual/job-789/publish");
+        assertEquals(200, publishResponse.statusCode());
+        assertJsonField(publishResponse, "status", "READY");
+    }
+
+    @Test
     void publishWithoutAnActiveLockReturnsConflict() throws Exception {
-        HttpResponse<String> response = post(
-                "/v1/cache/transform/job-456/publish",
-                """
-                        {
-                          "token": "missing-lock",
-                          "artifactUri": "s3://bucket/transform/job-456.parquet",
-                          "metadata": { "rows": 10 },
-                          "ttlSeconds": 120
-                        }
-                        """);
+        HttpResponse<String> response = post("/v1/cache/transform/job-456/publish");
 
         assertEquals(409, response.statusCode());
         assertJsonField(response, "message", "The lock no longer exists. The computation must be retried.");
@@ -125,10 +82,9 @@ class CacheserviceApplicationTests {
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private HttpResponse<String> post(String path, String body) throws Exception {
+    private HttpResponse<String> post(String path) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(uri(path))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
