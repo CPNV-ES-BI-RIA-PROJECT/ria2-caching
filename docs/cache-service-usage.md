@@ -19,19 +19,47 @@ The ETL services themselves do not talk to the cache directly.
 
 ---
 
-## 2. Default Configuration
+## 2. Configuration Via `.env`
+
+The application is configured through environment variables.
+
+Create a `.env` file at the project root:
+
+```dotenv
+SPRING_APPLICATION_NAME=cacheservice
+SERVER_PORT=8080
+
+CACHE_STORE_TYPE=redis
+CACHE_KEY_PREFIX_CACHE=c:
+CACHE_KEY_PREFIX_LOCK=l:
+
+SPRING_DATA_REDIS_HOST=redis
+SPRING_DATA_REDIS_PORT=6379
+
+APP_CONTAINER_NAME=cache-service
+REDIS_CONTAINER_NAME=cache-redis
+REDIS_IMAGE=redis:7.2-alpine
+REDIS_PORT=6379
+```
+
+An example file is also provided in `.env.example`.
+
+The Spring Boot app reads these values through `application.properties`.
+
+## 3. Default Configuration
 
 Current default configuration:
 
 ```properties
-spring.application.name=cacheservice
+spring.application.name=${SPRING_APPLICATION_NAME:cacheservice}
+server.port=${SERVER_PORT:8080}
 
-cache.store.type=redis
-cache.redis.key-prefix.cache=c:
-cache.redis.key-prefix.lock=l:
+cache.store.type=${CACHE_STORE_TYPE:redis}
+cache.redis.key-prefix.cache=${CACHE_KEY_PREFIX_CACHE:c:}
+cache.redis.key-prefix.lock=${CACHE_KEY_PREFIX_LOCK:l:}
 
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
+spring.data.redis.host=${SPRING_DATA_REDIS_HOST:localhost}
+spring.data.redis.port=${SPRING_DATA_REDIS_PORT:6379}
 ```
 
 This means:
@@ -42,7 +70,7 @@ This means:
 
 ---
 
-## 3. Running The Service
+## 4. Running The Service
 
 ### Start Redis
 
@@ -86,11 +114,44 @@ This mode is mainly intended for tests and quick local experiments.
 
 ---
 
-## 4. API Overview
+## 5. Running With Docker
+
+From the project root:
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+* the Spring Boot cache service
+* a Redis container
+
+The cache service will be available on:
+
+```bash
+http://localhost:8080
+```
+
+To stop everything:
+
+```bash
+docker compose down
+```
+
+To stop and remove Redis data as well:
+
+```bash
+docker compose down -v
+```
+
+---
+
+## 6. API Overview
 
 Base path:
 
-```text
+```bash
 /v1/cache
 ```
 
@@ -112,7 +173,7 @@ Endpoints:
 
 ---
 
-## 5. Recommended Orchestrator Flow
+## 7. Recommended Orchestrator Flow
 
 The normal orchestrator flow is:
 
@@ -129,9 +190,9 @@ If another orchestrator gets `409 COMPUTING`, it should wait and retry later.
 
 ---
 
-## 6. Endpoint Details
+## 8. Endpoint Details
 
-### 6.1 Check cache
+### 8.1 Check cache
 
 Request:
 
@@ -204,7 +265,7 @@ Content-Type: application/json
 }
 ```
 
-### 6.2 Acquire the lock
+### 8.2 Acquire the lock
 
 Request:
 
@@ -252,7 +313,7 @@ Content-Type: application/json
 
 Use a `leaseMs` value long enough for the ETL step to finish safely.
 
-### 6.3 Publish a computed result
+### 8.3 Publish a computed result
 
 After the ETL step completes and the artifact is stored, publish the result:
 
@@ -326,7 +387,7 @@ Content-Type: application/json
 }
 ```
 
-### 6.4 Delete a cache entry
+### 8.4 Delete a cache entry
 
 You can manually evict an entry:
 
@@ -344,7 +405,7 @@ This removes both the cache entry and its lock, if present.
 
 ---
 
-## 7. Example End-To-End Session
+## 9. Example End-To-End Session
 
 ### Step 1: check the cache
 
@@ -404,7 +465,7 @@ You should now receive `200 READY` and the published `artifactUri`.
 
 ---
 
-## 8. Input Validation Rules
+## 10. Input Validation Rules
 
 ### Lock request
 
@@ -443,7 +504,7 @@ Example:
 
 ---
 
-## 9. Key Design Recommendations
+## 11. Key Design Recommendations
 
 The cache key should:
 
@@ -472,7 +533,7 @@ sha256(canonical_json(request))
 
 ---
 
-## 10. Operational Notes
+## 12. Operational Notes
 
 * The service itself does not compute ETL data.
 * The service stores artifact references, not the artifact content.
@@ -482,9 +543,9 @@ sha256(canonical_json(request))
 
 ---
 
-## 11. Typical Integration Pseudocode
+## 13. Typical Integration Pseudocode
 
-```text
+```bash
 key = buildDeterministicKey(request)
 
 result = GET /v1/cache/{namespace}/{key}
