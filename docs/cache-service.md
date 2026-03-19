@@ -4,12 +4,12 @@ Practical usage guide: [cache-service-usage.md](./cache-service-usage.md)
 
 ## 1. Overview
 
-The **Cache Service** is a centralized microservice designed to **cache results of ETL operations** in order to avoid redundant computations.
+The **Cache Service** is a centralized microservice designed to cache orchestrated computations in order to avoid redundant work.
 
 In this architecture, **caching is handled exclusively at the Orchestrator level**:
 
 * The Orchestrator decides whether to use the cache or execute a task
-* Other services (Extract, Transform, Load) are **not aware of caching**
+* The Cache Service communicates only with the Orchestrator
 
 The Cache Service acts as a **generic key-value registry**:
 
@@ -23,7 +23,7 @@ The Cache Service is responsible for:
 
 * Checking if a result already exists (**cache hit/miss**)
 * Coordinating execution using **distributed locks**
-* Storing results (as references + metadata)
+* Storing cache state
 * Managing **TTL (expiration)**
 
 It **does not perform any computation**.
@@ -37,14 +37,11 @@ It **does not perform any computation**.
 * **Orchestrator** (NestJS) → controls caching logic
 * **Cache Service** (Spring Boot) → cache API
 * **Redis** → storage (entries + locks)
-* **ETL Services** (Extract, Transform, Load) → compute data
-* **Object Storage** → stores artifacts
 
 ### Principle
 
 ```id="arch"
 Orchestrator → Cache Service → Redis
-Orchestrator → ETL Services → Object Storage
 ```
 
 ---
@@ -64,8 +61,6 @@ Type: Hash
 Fields:
 
 * `status`: READY | COMPUTING
-* `artifactUri`: reference to result
-* `metadata`: JSON (optional)
 * `updatedAt`
 
 TTL:
@@ -86,12 +81,11 @@ Type: String
 
 Fields:
 
-* `token`
-* `owner`
+* internal lock marker
 
 TTL:
 
-* defined by `leaseMs`
+* defined by the configured default lease duration
 
 Used to prevent concurrent computations.
 
@@ -104,6 +98,11 @@ Used to prevent concurrent computations.
 ```id="api1"
 GET /v1/cache/{namespace}/{key}
 ```
+
+Behavior:
+
+* if the key is missing, the service returns `404 MISS`
+* after this miss, the service starts the internal lock workflow for the key
 
 Responses:
 
@@ -119,16 +118,12 @@ Responses:
 POST /v1/cache/{namespace}/{key}/lock
 ```
 
-Body:
-
-```json
-{ "owner": "orchestrator", "leaseMs": 300000 }
-```
-
 Responses:
 
-* `200 OK` → returns a `token`
+* `200 OK` → marks the key as `COMPUTING`
 * `409 CONFLICT`
+
+This endpoint remains public, but the orchestrator does not need to call it in the normal flow if `GET` already started the lock workflow.
 
 ---
 
@@ -138,21 +133,15 @@ Responses:
 POST /v1/cache/{namespace}/{key}/publish
 ```
 
-Body:
+Behavior:
 
-```json
-{
-  "token": "...",
-  "artifactUri": "s3://...",
-  "metadata": {},
-  "ttlSeconds": 86400
-}
-```
+* marks the key as `READY`
+* applies the configured TTL
 
 Responses:
 
 * `200 OK`
-* `403/409` if token is invalid
+* `409` if no active lock exists
 
 ---
 
@@ -172,11 +161,12 @@ DELETE /v1/cache/{namespace}/{key}
 2. Calls `GET cache`
 
    * if HIT → return result
-3. if MISS → calls `LOCK`
-4. if lock acquired → calls ETL service
-5. stores result in object storage
-6. calls `PUBLISH`
-7. lock expires or is released
+3. if MISS → the cache service starts the lock workflow for this key
+4. the orchestrator runs its work
+5. the orchestrator calls `PUBLISH`
+6. lock expires or is released
+7. a later `GET` returns `200 READY`
+8. optionally the orchestrator calls `DELETE`
 
 ---
 
@@ -197,24 +187,19 @@ sequenceDiagram
     participant O as Orchestrator
     participant C as Cache Service
     participant R as Redis
-    participant E as Extract Service
-    participant S as Object Storage
 
     O->>C: GET (namespace, key)
     C->>R: Read cache entry
     alt Cache HIT
         R-->>C: READY
-        C-->>O: artifactUri
+        C-->>O: 200 READY
     else Cache MISS
         R-->>C: Not found
-        O->>C: POST lock
         C->>R: SET NX (lock)
         alt Lock acquired
-            C-->>O: token
-            O->>E: Execute extraction
-            E->>S: Store artifact
-            E-->>O: artifactUri
-            O->>C: POST publish (token, artifactUri)
+            C-->>O: 404 MISS
+            O->>O: Execute work
+            O->>C: POST publish
             C->>R: Save cache entry + TTL
             C-->>O: OK
         else Lock exists
@@ -256,8 +241,8 @@ key = sha256(canonical_json(request))
 ## 9. Consistency & Concurrency
 
 * Locks use Redis `SET NX PX`
-* Only the lock owner can publish
 * Locks expire automatically (lease)
+* Publish requires an active lock
 * TTL ensures automatic cleanup
 
 ---
@@ -265,7 +250,6 @@ key = sha256(canonical_json(request))
 ## 10. Error Handling
 
 * expired lock → computation can restart
-* invalid token → publish rejected
 * Redis unavailable → fallback to no-cache mode (handled by orchestrator)
 
 ---
@@ -274,7 +258,7 @@ key = sha256(canonical_json(request))
 
 * Redis access is O(1)
 * very low latency (<10ms typical)
-* significantly reduces ETL recomputation
+* significantly reduces repeated work
 
 ---
 
@@ -284,7 +268,7 @@ The Cache Service:
 
 * centralizes caching logic
 * is fully controlled by the Orchestrator
-* prevents redundant ETL executions
+* prevents redundant executions
 * remains simple and generic
 
 It relies on:
