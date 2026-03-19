@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,7 +15,6 @@ import com.example.cacheservice.cache.domain.CacheState;
 import com.example.cacheservice.cache.domain.LockAcquisition;
 import com.example.cacheservice.cache.domain.PublishOutcome;
 import com.example.cacheservice.cache.domain.PublishOutcomeType;
-import tools.jackson.databind.JsonNode;
 
 @Component
 @ConditionalOnProperty(name = "cache.store.type", havingValue = "in-memory")
@@ -49,37 +47,32 @@ public class InMemoryCacheStore implements CacheStore {
     }
 
     @Override
-    public synchronized LockAcquisition acquireLock(String namespace, String key, String owner,
-            Duration leaseDuration) {
+    public synchronized LockAcquisition acquireLock(String namespace, String key, Duration leaseDuration) {
         String compositeKey = compositeKey(namespace, key);
         cleanup(compositeKey);
 
         StoredEntry existingEntry = entries.get(compositeKey);
         if (existingEntry != null && existingEntry.status == CacheState.READY) {
-            return new LockAcquisition(false, null, owner, leaseDuration, null);
+            return new LockAcquisition(false, leaseDuration, null);
         }
 
         if (locks.containsKey(compositeKey)) {
-            return new LockAcquisition(false, null, owner, leaseDuration, null);
+            return new LockAcquisition(false, leaseDuration, null);
         }
 
         Instant now = Instant.now(clock);
         Instant expiresAt = now.plus(leaseDuration);
-        String token = UUID.randomUUID().toString();
 
-        locks.put(compositeKey, new StoredLock(token, owner, expiresAt));
-        entries.put(compositeKey, new StoredEntry(CacheState.COMPUTING, null, null, now, owner, expiresAt));
+        locks.put(compositeKey, new StoredLock(expiresAt));
+        entries.put(compositeKey, new StoredEntry(CacheState.COMPUTING, now, expiresAt));
 
-        return new LockAcquisition(true, token, owner, leaseDuration, expiresAt);
+        return new LockAcquisition(true, leaseDuration, expiresAt);
     }
 
     @Override
     public synchronized PublishOutcome publish(
             String namespace,
             String key,
-            String token,
-            String artifactUri,
-            JsonNode metadata,
             Duration ttl) {
         String compositeKey = compositeKey(namespace, key);
         cleanup(compositeKey);
@@ -89,13 +82,9 @@ public class InMemoryCacheStore implements CacheStore {
             return new PublishOutcome(PublishOutcomeType.LOCK_NOT_FOUND, null);
         }
 
-        if (!lock.token.equals(token)) {
-            return new PublishOutcome(PublishOutcomeType.INVALID_TOKEN, null);
-        }
-
         Instant now = Instant.now(clock);
         Instant expiresAt = now.plus(ttl);
-        StoredEntry entry = new StoredEntry(CacheState.READY, artifactUri, metadata, now, null, expiresAt);
+        StoredEntry entry = new StoredEntry(CacheState.READY, now, expiresAt);
         entries.put(compositeKey, entry);
         locks.remove(compositeKey);
 
@@ -129,17 +118,14 @@ public class InMemoryCacheStore implements CacheStore {
 
     private record StoredEntry(
             CacheState status,
-            String artifactUri,
-            JsonNode metadata,
             Instant updatedAt,
-            String owner,
             Instant expiresAt) {
 
         private CacheEntry toCacheEntry(String namespace, String key) {
-            return new CacheEntry(namespace, key, status, artifactUri, metadata, updatedAt, owner);
+            return new CacheEntry(namespace, key, status, updatedAt);
         }
     }
 
-    private record StoredLock(String token, String owner, Instant expiresAt) {
+    private record StoredLock(Instant expiresAt) {
     }
 }
