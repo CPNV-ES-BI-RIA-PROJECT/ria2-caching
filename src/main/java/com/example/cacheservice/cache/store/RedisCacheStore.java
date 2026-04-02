@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.HashOperations;
@@ -142,6 +143,12 @@ public class RedisCacheStore implements CacheStore {
         redisTemplate.delete(List.of(cacheKey(namespace, key), lockKey(namespace, key)));
     }
 
+    @Override
+    public void deleteAll() {
+        deleteByPrefix(properties.getKeyPrefix().getCache());
+        deleteByPrefix(properties.getKeyPrefix().getLock());
+    }
+
     private CacheEntry mapEntry(String namespace, String key, Map<Object, Object> rawEntry) {
         CacheState state = CacheState.valueOf(stringValue(rawEntry.get("status")));
         Instant updatedAt = Instant.parse(stringValue(rawEntry.get("updatedAt")));
@@ -155,6 +162,13 @@ public class RedisCacheStore implements CacheStore {
 
     private String lockKey(String namespace, String key) {
         return properties.getKeyPrefix().getLock() + namespace + ":" + key;
+    }
+
+    private void deleteByPrefix(String prefix) {
+        Set<String> keys = redisTemplate.keys(prefix + "*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
     }
 
     private String stringValue(Object value) {

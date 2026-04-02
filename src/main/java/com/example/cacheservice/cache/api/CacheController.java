@@ -65,4 +65,10 @@ public class CacheController {
         cacheService.delete(namespace, key);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAll() {
+        cacheService.deleteAll();
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -15,4 +15,6 @@ public interface CacheStore {
     PublishOutcome publish(String namespace, String key, Duration ttl);
 
     void delete(String namespace, String key);
+
+    void deleteAll();
 }

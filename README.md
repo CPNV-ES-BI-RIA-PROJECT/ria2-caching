@@ -121,6 +121,7 @@ Base path: `/v1/cache`
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `DELETE` | `/` | Flush all cache entries and locks |
 | `GET` | `/{namespace}/{key}` | Read cache state |
 | `POST` | `/{namespace}/{key}/lock` | Explicitly acquire a lock |
 | `POST` | `/{namespace}/{key}/publish` | Mark the key as ready |
@@ -135,7 +136,8 @@ Typical responses:
 
 Example:
 
-```bash
+```http
+curl -i -X DELETE http://localhost:8080/v1/cache
 curl -i http://localhost:8080/v1/cache/reports/job-123
 curl -i -X POST http://localhost:8080/v1/cache/reports/job-123/publish
 curl -i -X DELETE http://localhost:8080/v1/cache/reports/job-123

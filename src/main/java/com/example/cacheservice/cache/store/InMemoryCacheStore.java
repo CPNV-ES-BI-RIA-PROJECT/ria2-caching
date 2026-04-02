@@ -98,6 +98,12 @@ public class InMemoryCacheStore implements CacheStore {
         locks.remove(compositeKey);
     }
 
+    @Override
+    public synchronized void deleteAll() {
+        entries.clear();
+        locks.clear();
+    }
+
     private void cleanup(String compositeKey) {
         Instant now = Instant.now(clock);
 
