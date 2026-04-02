@@ -26,6 +26,7 @@ For the architecture and design rationale, see [cache-service.md](./cache-servic
     - [8.2 Acquire the lock](#82-acquire-the-lock)
     - [8.3 Publish the key](#83-publish-the-key)
     - [8.4 Delete a cache entry](#84-delete-a-cache-entry)
+    - [8.5 Flush the whole cache](#85-flush-the-whole-cache)
   - [9. Example Session](#9-example-session)
     - [Step 1: check the cache](#step-1-check-the-cache)
     - [Step 2: acquire the lock](#step-2-acquire-the-lock)
@@ -195,6 +196,7 @@ Endpoints:
 * `GET /v1/cache/{namespace}/{key}`
 * `POST /v1/cache/{namespace}/{key}/lock`
 * `POST /v1/cache/{namespace}/{key}/publish`
+* `DELETE /v1/cache`
 * `DELETE /v1/cache/{namespace}/{key}`
 
 `namespace` lets you separate cache spaces, for example:
@@ -397,6 +399,22 @@ HTTP/1.1 204 No Content
 ```
 
 This removes both the cache entry and its lock, if present.
+
+### 8.5 Flush the whole cache
+
+You can remove every cache entry and every lock managed by this service:
+
+```bash
+curl -i -X DELETE http://localhost:8080/v1/cache
+```
+
+Response:
+
+```http
+HTTP/1.1 204 No Content
+```
+
+This is useful for manual resets in local or test environments.
 
 ---
 
