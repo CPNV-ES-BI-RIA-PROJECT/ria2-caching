@@ -75,6 +75,29 @@ class CacheserviceApplicationTests {
         assertJsonField(response, "message", "The lock no longer exists. The computation must be retried.");
     }
 
+    @Test
+    void deleteAllFlushesEveryCachedEntryAndLock() throws Exception {
+        HttpResponse<String> firstMiss = get("/v1/cache/reports/job-1");
+        assertEquals(404, firstMiss.statusCode());
+
+        HttpResponse<String> secondMiss = get("/v1/cache/imports/job-2");
+        assertEquals(404, secondMiss.statusCode());
+
+        HttpResponse<String> publishReady = post("/v1/cache/reports/job-1/publish");
+        assertEquals(200, publishReady.statusCode());
+
+        HttpResponse<String> flushResponse = delete("/v1/cache");
+        assertEquals(204, flushResponse.statusCode());
+
+        HttpResponse<String> afterFlushReady = get("/v1/cache/reports/job-1");
+        assertEquals(404, afterFlushReady.statusCode());
+        assertJsonField(afterFlushReady, "status", "MISS");
+
+        HttpResponse<String> afterFlushComputing = get("/v1/cache/imports/job-2");
+        assertEquals(404, afterFlushComputing.statusCode());
+        assertJsonField(afterFlushComputing, "status", "MISS");
+    }
+
     private HttpResponse<String> get(String path) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(uri(path))
                 .GET()
