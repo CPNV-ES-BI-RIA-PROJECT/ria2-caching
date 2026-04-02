@@ -136,7 +136,7 @@ Typical responses:
 
 Example:
 
-```bash
+```http
 curl -i -X DELETE http://localhost:8080/v1/cache
 curl -i http://localhost:8080/v1/cache/reports/job-123
 curl -i -X POST http://localhost:8080/v1/cache/reports/job-123/publish
