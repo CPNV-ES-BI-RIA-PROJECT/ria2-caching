@@ -95,7 +95,7 @@ Used to prevent concurrent computations.
 
 ### GET Cache
 
-```id="api1"
+```bash
 GET /v1/cache/{namespace}/{key}
 ```
 
@@ -114,7 +114,7 @@ Responses:
 
 ### LOCK
 
-```id="api2"
+```bash
 POST /v1/cache/{namespace}/{key}/lock
 ```
 
@@ -129,7 +129,7 @@ This endpoint remains public, but the orchestrator does not need to call it in t
 
 ### PUBLISH
 
-```id="api3"
+```bash
 POST /v1/cache/{namespace}/{key}/publish
 ```
 
@@ -147,9 +147,20 @@ Responses:
 
 ### DELETE (optional)
 
-```id="api4"
+```bash
 DELETE /v1/cache/{namespace}/{key}
 ```
+
+### FLUSH ALL (optional)
+
+```bash
+DELETE /v1/cache
+```
+
+Behavior:
+
+* removes every cache entry
+* removes every lock
 
 ---
 

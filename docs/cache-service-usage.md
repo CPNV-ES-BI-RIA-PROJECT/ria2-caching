@@ -26,6 +26,7 @@ For the architecture and design rationale, see [cache-service.md](./cache-servic
     - [8.2 Acquire the lock](#82-acquire-the-lock)
     - [8.3 Publish the key](#83-publish-the-key)
     - [8.4 Delete a cache entry](#84-delete-a-cache-entry)
+    - [8.5 Flush the whole cache](#85-flush-the-whole-cache)
   - [9. Example Session](#9-example-session)
     - [Step 1: check the cache](#step-1-check-the-cache)
     - [Step 2: acquire the lock](#step-2-acquire-the-lock)
@@ -195,6 +196,7 @@ Endpoints:
 * `GET /v1/cache/{namespace}/{key}`
 * `POST /v1/cache/{namespace}/{key}/lock`
 * `POST /v1/cache/{namespace}/{key}/publish`
+* `DELETE /v1/cache`
 * `DELETE /v1/cache/{namespace}/{key}`
 
 `namespace` lets you separate cache spaces, for example:
@@ -233,7 +235,7 @@ If another orchestrator gets `409 COMPUTING`, it should wait and retry later.
 
 Request:
 
-```bash
+```http
 curl -i http://localhost:8080/v1/cache/reports/job-123
 ```
 
@@ -299,7 +301,7 @@ This endpoint is still public, but in the normal orchestrator flow it is optiona
 
 Request:
 
-```bash
+```http
 curl -i -X POST http://localhost:8080/v1/cache/reports/job-123/lock
 ```
 
@@ -343,7 +345,7 @@ The lease duration is configured through `CACHE_DEFAULT_LEASE_MS`.
 
 After the work completes, publish the key:
 
-```bash
+```http
 curl -i -X POST http://localhost:8080/v1/cache/reports/job-123/publish
 ```
 
@@ -386,7 +388,7 @@ The service uses `CACHE_DEFAULT_TTL_SECONDS` for the ready entry.
 
 You can manually evict an entry:
 
-```bash
+```http
 curl -i -X DELETE http://localhost:8080/v1/cache/reports/job-123
 ```
 
@@ -398,13 +400,29 @@ HTTP/1.1 204 No Content
 
 This removes both the cache entry and its lock, if present.
 
+### 8.5 Flush the whole cache
+
+You can remove every cache entry and every lock managed by this service:
+
+```http
+curl -i -X DELETE http://localhost:8080/v1/cache
+```
+
+Response:
+
+```http
+HTTP/1.1 204 No Content
+```
+
+This is useful for manual resets in local or test environments.
+
 ---
 
 ## 9. Example Session
 
 ### Step 1: check the cache
 
-```bash
+```http
 curl -i http://localhost:8080/v1/cache/reports/monthly-summary-2026-03
 ```
 
@@ -412,7 +430,7 @@ If the result is `404 MISS`, continue directly with the work. The cache service 
 
 ### Step 2: acquire the lock
 
-```bash
+```http
 curl -i -X POST http://localhost:8080/v1/cache/reports/monthly-summary-2026-03/lock
 ```
 
@@ -426,13 +444,13 @@ If the result is `409`, another worker is already computing the result. Retry la
 
 ### Step 4: publish the key
 
-```bash
+```http
 curl -i -X POST http://localhost:8080/v1/cache/reports/monthly-summary-2026-03/publish
 ```
 
 ### Step 5: read the cached result
 
-```bash
+```http
 curl -i http://localhost:8080/v1/cache/reports/monthly-summary-2026-03
 ```
 

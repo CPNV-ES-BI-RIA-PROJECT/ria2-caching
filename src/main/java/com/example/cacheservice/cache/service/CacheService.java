@@ -66,4 +66,8 @@ public class CacheService {
     public void delete(String namespace, String key) {
         cacheStore.delete(namespace, key);
     }
+
+    public void deleteAll() {
+        cacheStore.deleteAll();
+    }
 }
